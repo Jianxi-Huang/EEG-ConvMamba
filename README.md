@@ -24,8 +24,10 @@
   
 ## Datasets
 
-A step by step series of examples that tell you how to get a development env running
+The dataset we used and the average results obtained：
 
 * BCI_competition_IV 2a — Average accuracy 80.06%
 * High Gamma Dataset — Average accuracy 97.09%
 * OpenBMI — Average accuracy 72.26%
+
+## Citation 
