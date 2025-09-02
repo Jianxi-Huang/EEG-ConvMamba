@@ -1,4 +1,4 @@
-## EEG-ConvMamba
+# EEG-ConvMamba
 
 EEG-ConvMamba: EEG Decoding and Visualization for Motor Imagery via Convolutional Neural Networks and Mamba
 
@@ -9,6 +9,9 @@ EEG-ConvMamba: EEG Decoding and Visualization for Motor Imagery via Convolutiona
 </div>
 
 
+1. We propose a novel end-to-end deep learning network architecture named EEG-ConvMamba for MI-EEG decoding, which combines mutil-branch convolution and Mamba structures for efficient integration of local-global information.
+2. Extensive experiments are conducted to explore the effects of the stacking depth, convolution kernel size, and convolution filter parameters of Mamba. The results show that the stacking depth of the Mamba module and the increase in the number of convolution         filters enhance the performance of the model. With increasing convolution kernels, the model performance tends to decrease.
+3. To enhance the interpretability of the network, we employ the Smooth Grad-CAM visualization technique to analyze the learned features via EEG topography.
 ### Prerequisites
 
 What things you need to install the software and how to install them
