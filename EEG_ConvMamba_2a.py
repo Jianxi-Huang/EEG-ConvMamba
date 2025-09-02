@@ -511,7 +511,7 @@ class Start():
         self.Tensor = torch.cuda.FloatTensor
         self.LongTensor = torch.cuda.LongTensor
         self.criterion_cls = torch.nn.CrossEntropyLoss().cuda()
-        self.model = EEG_Mamba_2a().cuda()
+        self.model = EEG_ConvMamba_2a().cuda()
         self.model = nn.DataParallel(self.model, device_ids=[i for i in range(len(gpus))])
         self.model = self.model.cuda()
         # summary(self.model, (1, 22, 1000))
@@ -666,7 +666,7 @@ class Start():
                     train_precision = precision_score(label_np, train_pred_np, average='weighted')
                     train_recall = recall_score(label_np, train_pred_np, average='weighted')
                     train_f1 = f1_score(label_np, train_pred_np, average='weighted')
-                    train_kappa = cohen_kappa_score(label_np, train_pred_np)  # 添加Kappa计算
+                    train_kappa = cohen_kappa_score(label_np, train_pred_np)
 
                     print('Epoch:', e,
                           '  Train loss: %.6f' % loss.detach().cpu().numpy(),
@@ -675,12 +675,12 @@ class Start():
                           '  Train precision: %.6f' % train_precision,
                           '  Train recall: %.6f' % train_recall,
                           '  Train F1: %.6f' % train_f1,
-                          '  Train Kappa: %.6f' % train_kappa,  # 添加Kappa输出
+                          '  Train Kappa: %.6f' % train_kappa,
                           '\n  Test accuracy: %.6f' % acc,
                           '  Test precision: %.6f' % test_precision,
                           '  Test recall: %.6f' % test_recall,
                           '  Test F1: %.6f' % test_f1,
-                          '  Test Kappa: %.6f' % test_kappa)  # 添加Kappa输出
+                          '  Test Kappa: %.6f' % test_kappa)
 
                     # Update metrics
                     num += 1
@@ -779,9 +779,9 @@ def main():
         result_write.write('Subject ' + str(i + 1) + ' : ' + 'The best F1-score is: ' + str(bestf1) + "\n")
         result_write.write('Subject ' + str(i + 1) + ' : ' + 'The average F1-score is: ' + str(averf1) + "\n")
         result_write.write(
-            'Subject ' + str(i + 1) + ' : ' + 'The best Kappa is: ' + str(bestkappa) + "\n")  # 添加Kappa记录
+            'Subject ' + str(i + 1) + ' : ' + 'The best Kappa is: ' + str(bestkappa) + "\n")
         result_write.write(
-            'Subject ' + str(i + 1) + ' : ' + 'The average Kappa is: ' + str(averkappa) + "\n")  # 添加Kappa记录
+            'Subject ' + str(i + 1) + ' : ' + 'The average Kappa is: ' + str(averkappa) + "\n")
 
         endtime = datetime.datetime.now()
         print('subject %d duration: ' % (i + 1) + str(endtime - starttime))
