@@ -24,7 +24,7 @@
   
 ## Datasets
 
-The dataset we used and the average results obtained：
+#### The dataset we used and the average results obtained：
 
 * BCI_competition_IV 2a — Average accuracy 80.06%
 * High Gamma Dataset — Average accuracy 97.09%
