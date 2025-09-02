@@ -158,7 +158,7 @@ class VisionMamba(nn.Module):
                  num_classes=4,
                  ssm_cfg=None,
                  drop_rate=0.,
-                 drop_path_rate=0.3,
+                 drop_path_rate=0.3,# 0.5
                  norm_epsilon: float = 1e-5,
                  rms_norm: bool = False,
                  fused_add_norm=False,
@@ -180,7 +180,6 @@ class VisionMamba(nn.Module):
                  use_middle_cls_token=False,
                  **kwargs):
         factory_kwargs = {"device": device, "dtype": dtype}
-
         kwargs.update(factory_kwargs)
         super(VisionMamba, self).__init__()
         self.residual_in_fp32 = residual_in_fp32
@@ -200,7 +199,7 @@ class VisionMamba(nn.Module):
         self.d_model = self.num_features = self.embed_dim = embed_dim
 
 
-        num_patches = self.embed_dim  # (26, 40)
+        num_patches = self.embed_dim
 
         # cls_token
         if if_cls_token:
@@ -260,6 +259,7 @@ class VisionMamba(nn.Module):
                          if_random_token_rank=False):
 
         B, M, _ = x.shape
+
         if self.if_cls_token:
             if self.use_double_cls_token:
                 cls_token_head = self.cls_token_head.expand(B, -1, -1)
@@ -398,13 +398,15 @@ class VisionMamba(nn.Module):
                 return_features=False, inference_params=None, if_random_cls_token_position=False,
                 if_random_token_rank=False):
         Mamba_output = self.forward_features(x, inference_params,
-                                   if_random_cls_token_position=if_random_cls_token_position,
-                                   if_random_token_rank=if_random_token_rank)
+                                  if_random_cls_token_position=if_random_cls_token_position,
+                                  if_random_token_rank=if_random_token_rank)
+
         return Mamba_output
 
 
+
 class Classificatin_FC(nn.Sequential):
-    def __init__(self, n_classes=4):
+    def __init__(self, n_classes=2):
         super().__init__()
 
         self.fc = nn.Sequential(
@@ -424,7 +426,7 @@ class Classificatin_FC(nn.Sequential):
 
 
 class Feature_extract(nn.Module):
-    def __init__(self, chans=44, samples=1000, dropout_rate=0.5, F1=10, F2=40):
+    def __init__(self, chans=20, samples=1000, dropout_rate=0.5, F1=10, F2=40):
         super().__init__()
 
         self.conv1 = nn.Sequential(nn.Conv2d(1, F1, kernel_size=(1, 15)),
@@ -466,12 +468,11 @@ class Feature_extract(nn.Module):
         return output
 
 
-
-class EEG_ConvMamba_HGD(nn.Sequential):
-    def __init__(self, emb_size=40, depth=4, n_classes=4, **kwargs):  # 40
+class EEG_ConvMamba_OpenBMI(nn.Sequential):
+    def __init__(self, emb_size=40, depth=4, n_classes=2, **kwargs):  # 40
         super().__init__(
             Feature_extract(
-                chans=22,
+                chans=20,
                 samples=1000,
                 dropout_rate=0.5,
                 F1=10,
@@ -493,31 +494,28 @@ class EEG_ConvMamba_HGD(nn.Sequential):
                 if_devide_out=True,
                 use_middle_cls_token=True
             ),
-            Classificatin_FC( n_classes=4)
+            Classificatin_FC( n_classes)
         )
 
 
 class Start():
     def __init__(self, nsub):
         super(Start, self).__init__()
-        if nsub == 1:
-            self.batch_size = 160
-        if nsub != 1:
-            self.batch_size = 220
+        self.batch_size = 50
         self.n_epochs = 2000
-        # self.c_dim = 4
+        self.c_dim = 4
         self.lr = 0.0005
         self.b1 = 0.9
         self.b2 = 0.999
-        self.nSub = 4
+        self.nSub = nsub
         self.start_epoch = 0
-        self.root1 = '/Dataset/train/'
-        self.root2 = '/Dataset/test/'
+        self.root1 = '/Dataset/data_train/'
+        self.root2 = '/Dataset/data_test/'
         self.log_write = open("/Dataset/results/log_subject%d.txt" % self.nSub, "w")
         self.Tensor = torch.cuda.FloatTensor
         self.LongTensor = torch.cuda.LongTensor
         self.criterion_cls = torch.nn.CrossEntropyLoss().cuda()
-        self.model = EEG_ConvMamba_HGD().cuda()
+        self.model = EEG_ConvMamba_OpenBMI().cuda()
         self.model = nn.DataParallel(self.model, device_ids=[i for i in range(len(gpus))])
         self.model = self.model.cuda()
         # summary(self.model, (1, 22, 1000))
@@ -526,20 +524,20 @@ class Start():
     def interaug(self, timg, label):
         aug_data = []
         aug_label = []
-        for cls4aug in range(4):
-            cls_idx = np.where(label == cls4aug )
+        for cls4aug in range(2):
+            cls_idx = np.where(label == cls4aug + 1)
             tmp_data = timg[cls_idx]
             tmp_label = label[cls_idx]
 
-            tmp_aug_data = np.zeros((int(self.batch_size / 4), 1, 44, 1000))
-            for ri in range(int(self.batch_size / 4)):
+            tmp_aug_data = np.zeros((int(self.batch_size / 2), 1, 20, 1000))
+            for ri in range(int(self.batch_size / 2)):
                 for rj in range(10):
                     rand_idx = np.random.randint(0, tmp_data.shape[0], 10)
                     tmp_aug_data[ri, :, :, rj * 100:(rj + 1) * 100] = tmp_data[rand_idx[rj], :, :,
-                                                                      rj * 100:(rj + 1) * 100]
+                                                                        rj * 100:(rj + 1) * 100]
 
             aug_data.append(tmp_aug_data)
-            aug_label.append(tmp_label[:int(self.batch_size / 4)])
+            aug_label.append(tmp_label[:int(self.batch_size / 2)])
         aug_data = np.concatenate(aug_data)
         aug_label = np.concatenate(aug_label)
         aug_shuffle = np.random.permutation(len(aug_data))
@@ -548,29 +546,45 @@ class Start():
 
         aug_data = torch.from_numpy(aug_data).cuda()
         aug_data = aug_data.float()
-        aug_label = torch.from_numpy(aug_label).cuda()
+        aug_label = torch.from_numpy(aug_label - 1).cuda()
         aug_label = aug_label.long()
         return aug_data, aug_label
 
-
-
     def get_source_data(self):
 
-        train_data = np.load(self.root1 + 's%d_data.npy' % self.nSub)
-        train_label = np.load(self.root1 + 's%d_label.npy' % self.nSub)
-        test_data = np.load(self.root2 + 's%d_data.npy' % self.nSub)
-        test_label = np.load(self.root2 + 's%d_label.npy' % self.nSub)
-        train_data = np.expand_dims(train_data, axis=1)
-        test_data = np.expand_dims(test_data, axis=1)
+        # train data
+        self.total_data = scipy.io.loadmat(self.root1 + 's%dT.mat' % self.nSub)
+        self.train_data = self.total_data['data']
+        self.train_label = self.total_data['label']
+
+        self.train_data = np.transpose(self.train_data, (1, 2, 0))
+        self.train_data = np.expand_dims(self.train_data, axis=1)
+        self.train_label = np.transpose(self.train_label)
+
+        self.allData = self.train_data
+        self.allLabel = self.train_label[0]
+
+        shuffle_num = np.random.permutation(len(self.allData))
+        self.allData = self.allData[shuffle_num, :, :, :]
+        self.allLabel = self.allLabel[shuffle_num]
+
+        # test data
+        self.test_tmp = scipy.io.loadmat(self.root2 + 's%dE.mat' % self.nSub)
+        self.test_data = self.test_tmp['data']
+        self.test_label = self.test_tmp['label']
+
+        self.test_data = np.transpose(self.test_data, (1, 2, 0))
+        self.test_data = np.expand_dims(self.test_data, axis=1)
+        self.test_label = np.transpose(self.test_label)
+
+        self.testData = self.test_data
+        self.testLabel = self.test_label[0]
 
         # standardize
-        target_mean = np.mean(train_data)
-        target_std = np.std(train_data)
-        self.allData = (train_data - target_mean) / target_std
-        self.testData = (test_data - target_mean) / target_std
-
-        self.allLabel = train_label
-        self.testLabel = test_label
+        target_mean = np.mean(self.allData)
+        target_std = np.std(self.allData)
+        self.allData = (self.allData - target_mean) / target_std
+        self.testData = (self.testData - target_mean) / target_std
 
         return self.allData, self.allLabel, self.testData, self.testLabel
 
@@ -579,20 +593,20 @@ class Start():
         img, label, test_data, test_label = self.get_source_data()
 
         img = torch.from_numpy(img)
-        label = torch.from_numpy(label)
+        label = torch.from_numpy(label - 1)
 
         dataset = torch.utils.data.TensorDataset(img, label)
         self.dataloader = torch.utils.data.DataLoader(dataset=dataset, batch_size=self.batch_size, shuffle=True)
 
         test_data = torch.from_numpy(test_data)
-        test_label = torch.from_numpy(test_label)
+        test_label = torch.from_numpy(test_label - 1)
         test_dataset = torch.utils.data.TensorDataset(test_data, test_label)
         self.test_dataloader = torch.utils.data.DataLoader(dataset=test_dataset, batch_size=self.batch_size,
                                                            shuffle=True)
 
         # Optimizers
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=self.lr, betas=(self.b1, self.b2),
-                                          weight_decay=0.05)
+                                          weight_decay=0.05, amsgrad=True)
 
         test_data = Variable(test_data.type(self.Tensor))
         test_label = Variable(test_label.type(self.LongTensor))
@@ -610,19 +624,20 @@ class Start():
 
         # Train model
         for e in range(self.n_epochs):
-
-            # Train model
+            # in_epoch = time.time()
             self.model.train()
             for i, (img, label) in enumerate(self.dataloader):
                 img = Variable(img.cuda().type(self.Tensor))
                 label = Variable(label.cuda().type(self.LongTensor))
 
+                # data augmentation
 
                 aug_data, aug_label = self.interaug(self.allData, self.allLabel)
                 img = torch.cat((img, aug_data))
                 label = torch.cat((label, aug_label))
 
                 outputs = self.model(img)
+
                 loss = self.criterion_cls(outputs, label)
 
                 self.optimizer.zero_grad()
@@ -632,7 +647,7 @@ class Start():
                 # test process
                 if (e + 1) % 1 == 0:
                     self.model.eval()
-                    Tok, Cls = self.model(test_data)
+                    Cls = self.model(test_data)
 
                     loss_test = self.criterion_cls(Cls, test_label)
                     y_pred = torch.max(Cls, 1)[1]
@@ -707,8 +722,8 @@ class Start():
             print('The best recall is: %.6f' % bestRecall)
             print('The average F1 score is: %.6f' % averF1)
             print('The best F1 score is: %.6f' % bestF1)
-            print('The average Kappa score is: %.6f' % averKappa)  # 添加Kappa输出
-            print('The best Kappa score is: %.6f' % bestKappa)  # 添加Kappa输出
+            print('The average Kappa score is: %.6f' % averKappa)
+            print('The best Kappa score is: %.6f' % bestKappa)
 
             # Write to log file
             self.log_write.write(f'The average accuracy is: {averAcc:.6f}\n')
@@ -719,15 +734,15 @@ class Start():
             self.log_write.write(f'The best recall is: {bestRecall:.6f}\n')
             self.log_write.write(f'The average F1 score is: {averF1:.6f}\n')
             self.log_write.write(f'The best F1 score is: {bestF1:.6f}\n')
-            self.log_write.write(f'The average Kappa score is: {averKappa:.6f}\n')  # 添加Kappa记录
-            self.log_write.write(f'The best Kappa score is: {bestKappa:.6f}\n')  # 添加Kappa记录
+            self.log_write.write(f'The average Kappa score is: {averKappa:.6f}\n')
+            self.log_write.write(f'The best Kappa score is: {bestKappa:.6f}\n')
 
             return (bestAcc, averAcc, bestPrecision, averPrecision,
                     bestRecall, averRecall, bestF1, averF1, bestKappa, averKappa,
                     Y_true, Y_pred)
 
 def main():
-
+    # 初始化所有指标
     total_best_acc = 0
     total_aver_acc = 0
     total_best_pre = 0
@@ -738,11 +753,22 @@ def main():
     total_aver_f1 = 0
     total_best_kappa = 0
     total_aver_kappa = 0
-    num_subjects = 14
+    num_subjects = 54
+
+    all_best_acc = []
+    all_aver_acc = []
+    all_best_pre = []
+    all_aver_pre = []
+    all_best_re = []
+    all_aver_re = []
+    all_best_f1 = []
+    all_aver_f1 = []
+    all_best_kappa = []
+    all_aver_kappa = []
 
     result_write = open("/Dataset/results/sub_result.txt", "w")
 
-    for i in range(14):
+    for i in range(54):
         starttime = datetime.datetime.now()
 
         seed_n = random.randint(1, 2025)
@@ -809,18 +835,31 @@ def main():
     avg_best_kappa = total_best_kappa / num_subjects
     avg_aver_kappa = total_aver_kappa / num_subjects
 
-    # 写入最终平均结果
+
+    std_best_acc = np.std(all_best_acc)
+    std_aver_acc = np.std(all_aver_acc)
+    std_best_pre = np.std(all_best_pre)
+    std_aver_pre = np.std(all_aver_pre)
+    std_best_re = np.std(all_best_re)
+    std_aver_re = np.std(all_aver_re)
+    std_best_f1 = np.std(all_best_f1)
+    std_aver_f1 = np.std(all_aver_f1)
+    std_best_kappa = np.std(all_best_kappa)
+    std_aver_kappa = np.std(all_aver_kappa)
+
+
     result_write.write('\n**Final Average Results Across All Subjects:**\n')
-    result_write.write(f'The average Best accuracy is: {avg_best_acc:.4f}\n')
-    result_write.write(f'The average Average accuracy is: {avg_aver_acc:.4f}\n')
-    result_write.write(f'The average Best Precision is: {avg_best_pre:.4f}\n')
-    result_write.write(f'The average Average Precision is: {avg_aver_pre:.4f}\n')
-    result_write.write(f'The average Best Recall is: {avg_best_re:.4f}\n')
-    result_write.write(f'The average Average Recall is: {avg_aver_re:.4f}\n')
-    result_write.write(f'The average Best F1-score is: {avg_best_f1:.4f}\n')
-    result_write.write(f'The average Average F1-score is: {avg_aver_f1:.4f}\n')
-    result_write.write(f'The average Best Kappa is: {avg_best_kappa:.4f}\n')
-    result_write.write(f'The average Average Kappa is: {avg_aver_kappa:.4f}\n')
+    result_write.write(f'The average Best accuracy is: {avg_best_acc:.4f} ± {std_best_acc:.4f}\n')
+    result_write.write(f'The average Average accuracy is: {avg_aver_acc:.4f} ± {std_aver_acc:.4f}\n')
+    result_write.write(f'The average Best Precision is: {avg_best_pre:.4f} ± {std_best_pre:.4f}\n')
+    result_write.write(f'The average Average Precision is: {avg_aver_pre:.4f} ± {std_aver_pre:.4f}\n')
+    result_write.write(f'The average Best Recall is: {avg_best_re:.4f} ± {std_best_re:.4f}\n')
+    result_write.write(f'The average Average Recall is: {avg_aver_re:.4f} ± {std_aver_re:.4f}\n')
+    result_write.write(f'The average Best F1-score is: {avg_best_f1:.4f} ± {std_best_f1:.4f}\n')
+    result_write.write(f'The average Average F1-score is: {avg_aver_f1:.4f} ± {std_aver_f1:.4f}\n')
+    result_write.write(f'The average Best Kappa is: {avg_best_kappa:.4f} ± {std_best_kappa:.4f}\n')
+    result_write.write(f'The average Average Kappa is: {avg_aver_kappa:.4f} ± {std_aver_kappa:.4f}\n')
+
 
     yt_np = yt.cpu().numpy()
     yp_np = yp.cpu().numpy()
@@ -833,6 +872,7 @@ def main():
     conf_mat = confusion_matrix(yt_np, yp_np)
     result_write.write(np.array2string(conf_mat, separator=', ') + '\n')
 
+
     overall_kappa = cohen_kappa_score(yt_np, yp_np)
     result_write.write(f'\nOverall Kappa Score: {overall_kappa:.4f}\n')
 
@@ -840,16 +880,16 @@ def main():
 
 
     print('\n**Final Average Results Across All Subjects:**')
-    print(f'Average Best Accuracy: {avg_best_acc:.4f}')
-    print(f'Average Average Accuracy: {avg_aver_acc:.4f}')
-    print(f'Average Best Precision: {avg_best_pre:.4f}')
-    print(f'Average Average Precision: {avg_aver_pre:.4f}')
-    print(f'Average Best Recall: {avg_best_re:.4f}')
-    print(f'Average Average Recall: {avg_aver_re:.4f}')
-    print(f'Average Best F1-score: {avg_best_f1:.4f}')
-    print(f'Average Average F1-score: {avg_aver_f1:.4f}')
-    print(f'Average Best Kappa: {avg_best_kappa:.4f}')
-    print(f'Average Average Kappa: {avg_aver_kappa:.4f}')
+    print(f'Average Best Accuracy: {avg_best_acc:.4f} ± {std_best_acc:.4f}')
+    print(f'Average Average Accuracy: {avg_aver_acc:.4f} ± {std_aver_acc:.4f}')
+    print(f'Average Best Precision: {avg_best_pre:.4f} ± {std_best_pre:.4f}')
+    print(f'Average Average Precision: {avg_aver_pre:.4f} ± {std_aver_pre:.4f}')
+    print(f'Average Best Recall: {avg_best_re:.4f} ± {std_best_re:.4f}')
+    print(f'Average Average Recall: {avg_aver_re:.4f} ± {std_aver_re:.4f}')
+    print(f'Average Best F1-score: {avg_best_f1:.4f} ± {std_best_f1:.4f}')
+    print(f'Average Average F1-score: {avg_aver_f1:.4f} ± {std_aver_f1:.4f}')
+    print(f'Average Best Kappa: {avg_best_kappa:.4f} ± {std_best_kappa:.4f}')
+    print(f'Average Average Kappa: {avg_aver_kappa:.4f} ± {std_aver_kappa:.4f}')
     print(f'\nOverall Kappa Score: {overall_kappa:.4f}')
 
 if __name__ == "__main__":

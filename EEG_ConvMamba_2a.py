@@ -465,7 +465,7 @@ class Feature_extract(nn.Module):
         return output
 
 
-class EEG_Mamba_2a(nn.Sequential):
+class EEG_ConvMamba_2a(nn.Sequential):
     def __init__(self, emb_size=40, depth=4, n_classes=4, **kwargs):
         super().__init__(
             Feature_extract(
