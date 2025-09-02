@@ -5,7 +5,7 @@ EEG-ConvMamba: EEG Decoding and Visualization for Motor Imagery via Convolutiona
 ## Model architecture
 
 <div align="center">
-  <img src="https://github.com/******/dbscan_clustering_algorithm/blob/master/data/DBSCAN.png">
+  <img src="https://github.com/Jianxi-Huang/EEG-ConvMamba/blob/main/Model%20Architecture.png" width="700px">
 </div>
 
 
