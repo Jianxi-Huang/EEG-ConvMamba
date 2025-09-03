@@ -30,4 +30,4 @@
 * High Gamma Dataset — Average accuracy 97.09%
 * OpenBMI — Average accuracy 72.26%
 
-## Citation 
+### I hope this paper is useful to everyone, and wish you all success in your research. :blush:
