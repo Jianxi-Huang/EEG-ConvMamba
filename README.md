@@ -18,7 +18,8 @@
 * python=3.10.13
 * cudatoolkit=11.8
 * torch=2.1.1
-* torchvision=0.16.1 torchaudio=2.1.1
+* torchvision=0.16.1
+* torchaudio=2.1.1
 * causal-conv1d=1.1.1
 * mamba-ssm=2.2.1
   
